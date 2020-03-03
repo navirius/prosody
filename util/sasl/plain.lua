@@ -36,6 +36,7 @@ plain_test:
 ]]
 
 local function plain(self, message)
+	log("debug", "plain processed...")
 	if not message then
 		return "failure", "malformed-request";
 	end
@@ -45,7 +46,7 @@ local function plain(self, message)
 	if not authorization then
 		return "failure", "malformed-request";
 	end
-
+	log("debug", "plain processed 2...")
 	-- SASLprep password and authentication
 	authentication = saslprep(authentication);
 	password = saslprep(password);
@@ -54,7 +55,7 @@ local function plain(self, message)
 		log("debug", "Username or password violates SASLprep.");
 		return "failure", "malformed-request", "Invalid username or password.";
 	end
-
+	log("debug", "plain processed 3...")
 	local _nodeprep = self.profile.nodeprep;
 	if _nodeprep ~= false then
 		authentication = (_nodeprep or nodeprep)(authentication);
@@ -62,13 +63,15 @@ local function plain(self, message)
 			return "failure", "malformed-request", "Invalid username or password."
 		end
 	end
-
+	log("debug", "plain processed 4...")
 	local correct, state = false, false;
 	if self.profile.plain then
+		log("debug", "plain function executed");
 		local correct_password;
 		correct_password, state = self.profile.plain(self, authentication, self.realm);
 		correct = (correct_password == password);
 	elseif self.profile.plain_test then
+		log("debug", "plain_test function executed");
 		correct, state = self.profile.plain_test(self, authentication, password, self.realm);
 	end
 

@@ -18,7 +18,7 @@ local type = type
 local setmetatable = setmetatable;
 local assert = assert;
 local require = require;
-
+local log = require "util.logger".init("sasl");
 module "sasl"
 
 --[[
@@ -83,6 +83,7 @@ end
 
 -- feed new messages to process into the library
 function method:process(message)
+	log("debug", "process "..message.." mechanism "..self.selected)
 	--if message == "" or message == nil then return "failure", "malformed-request" end
 	return mechanisms[self.selected](self, message);
 end
@@ -92,5 +93,6 @@ require "util.sasl.plain"     .init(registerMechanism);
 require "util.sasl.digest-md5".init(registerMechanism);
 require "util.sasl.anonymous" .init(registerMechanism);
 require "util.sasl.scram"     .init(registerMechanism);
+require "util.sasl.external"  .init(registerMechanism);
 
 return _M;
