@@ -1,53 +1,28 @@
--- sasl.lua v0.4
--- Copyright (C) 2008-2010 Tobias Markmann
---
---    All rights reserved.
---
---    Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
---
---        * Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
---        * Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
---        * Neither the name of Tobias Markmann nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
---
---    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+local saslprep = require "util.encodings".stringprep.saslprep;
 
-local s_match = string.match;
+local _ENV = nil;
+-- luacheck: std none
 
-local log = require "util.logger".init("sasl");
-local generate_uuid = require "util.uuid".generate;
+local function external(self, message)
+    message = saslprep(message);
+    local state
+    self.username, state = self.profile.external(message);
 
-module "sasl.anonymous"
-
---=========================
---SASL ANONYMOUS according to RFC 4505
-
---[[
-Supported Authentication Backends
-
-anonymous:
-	function(username, realm)
-		return true; --for normal usage just return true; if you don't like the supplied username you can return false.
-	end
-]]
-
-local function anonymous(self, message)
-    log("debug", "anonymouse message "..message)
-    local authorization, authentication, password = s_match(message, "^([^%z]*)%z([^%z]+)%z([^%z]+)");
-    local username;
-    if self.profile.external then
-        log("debug", "external function executed");
-        local correct_password;
-        correct_password, state = self.profile.external(self, authentication, password, self.realm);
-        correct = (correct_password == password);
-        self.username = username;
-    else
-        return "failure", "not-authorized", "Unable to authorize you with the authentication credentials you've sent.";
+    if state == false then
+        return "failure", "account-disabled";
+    elseif state == nil  then
+        return "failure", "not-authorized";
+    elseif state == "expired" then
+        return "false", "credentials-expired";
     end
 
+    return "success";
 end
 
-function init(registerMechanism)
-    registerMechanism("EXTERNAL", {"external"}, anonymous);
+local function init(registerMechanism)
+    registerMechanism("EXTERNAL", {"external"}, external);
 end
 
-return _M;
+return {
+    init = init;
+}
