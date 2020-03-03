@@ -19,6 +19,7 @@
 local log = require "util.logger".init("auth_json_http");
 local ltn12 = require "ltn12";
 local util_sasl_new = require "util.sasl".new;
+local json = require "util.json";
 
 -- authentication = "json_http"
 -- auth_json_http_url = "http://192.168.50.1:3000/api/v1/auth/local"
@@ -51,13 +52,13 @@ end
 
 
 local function getPassword(username)
-    module:log("debug", "getPassword ?", username);
-    require "ltn12";
+    module:log("debug", "getPassword %s", username);
     local http = require "socket.http";
     local https = require "ssl.https";
-    local json = require "util.json";
 
-    local request = json:encode({ userId = username });
+
+    local credentials = json.encode({ userId = string.upper(username), status=true, message="", userIdRequest="" });
+    log("debug", "request JSON "..credentials);
     local responBody = {};
     local httpRequest;
     if string.sub(auth_url, 1, string.len('https')) == 'https' then
@@ -68,74 +69,72 @@ local function getPassword(username)
 
     local resultObject, responCode, responHeader, responStatus = httpRequest{
         method = "POST",
-        url = auth_url + "/get-password",
-        headers {
+        url = auth_url.."/get-password",
+        headers = {
             ["Content-Type"] = "application/json",
-            ["Content-Length"] = tostring(#request)
+            ["Content-Length"] = tostring(#credentials)
         },
-        source = ltn12.source.string(request),
+        source = ltn12.source.string(credentials),
         sink = ltn12.sink.table(responBody)
     };
 
-    log("debug", "resultObject "..resultObject)
-    log("debug", "responseCode "..responCode)
+    log("debug", "responBody "..table.concat(responBody));
 
-    if respcode == 200 then
-        local responseObject = json.decode(responBody);
-        if resultObject.status == true then
-            return responseObject.userId;
+    if responCode == 200 then
+         local responseObject = json.decode(table.concat(responBody));
+        if responseObject.status == true then
+            return responseObject.userPassword;
         else
-            return ""
+            return "";
         end
     else
         return "";
     end
-
-
-
 end
 
 function provider.get_sasl_handler()
     local getpass_authentication_profile = {
-        external = function(sasl, username, password, realm)
-            module:log("debug", "get_sasl_handler().getpass_authentication_profile %s", username..":"..password);
-            require "ltn12";
-            local http = require "socket.http";
-            local https = require "ssl.https";
-            local json = require "util.json";
-
-            local credentials = json.encode({ userId = string.upper(username), userPassword = string.upper(password), sessionId="",conferenceId="",roomName="",status="true",message="",userIdRequest="" });
-            local respbody = {};
-            local httpRequest;
-            if string.sub(auth_url, 1, string.len('https')) == 'https' then
-                httpRequest = https.request;
-            else
-                httpRequest = http.request;
-            end
-            local result, respcode, respheaders, respstatus = httpRequest{
-                method = "POST",
-                url = auth_url.."/user-login",
-                headers = {
-                    ["Content-Type"] = "application/json",
-                    ["Content-Length"] = tostring(#credentials)
-                },
-                source = ltn12.source.string(credentials),
-                sink = ltn12.sink.table(respbody)
-            }
-            log("debug", "get_sasl_handler().respcode: %s", respcode);
-            log("debug", "get_sasl_handler().result: %s", result);
-
-            if respcode == 200 then
-                log("debug", "JSON result "..result);
-                local resultObject = json.decode(result);
-                if resultObject.status == true then
-                    return true, true;
-                else
-                    return false, true;
-                end
-            else
-                return false, true;
-            end
+        plain = function(sasl, username, realm)
+            module:log("debug", "get_sasl_handler().getpass_authentication_profile %s", username);
+            local password = getPassword(username)
+            return password, true;
+            --require "ltn12";
+            --local http = require "socket.http";
+            --local https = require "ssl.https";
+            --local json = require "util.json";
+            --
+            --local credentials = json.encode({ userId = string.upper(username), userPassword = string.upper(password), sessionId="",conferenceId="",roomName="",status="true",message="",userIdRequest="" });
+            --local respbody = {};
+            --local httpRequest;
+            --if string.sub(auth_url, 1, string.len('https')) == 'https' then
+            --    httpRequest = https.request;
+            --else
+            --    httpRequest = http.request;
+            --end
+            --local result, respcode, respheaders, respstatus = httpRequest{
+            --    method = "POST",
+            --    url = auth_url.."/user-login",
+            --    headers = {
+            --        ["Content-Type"] = "application/json",
+            --        ["Content-Length"] = tostring(#credentials)
+            --    },
+            --    source = ltn12.source.string(credentials),
+            --    sink = ltn12.sink.table(respbody)
+            --}
+            --log("debug", "get_sasl_handler().respcode: %s", respcode);
+            --log("debug", "get_sasl_handler().result: %s", result);
+            --
+            --if respcode == 200 then
+            --    log("debug", "JSON result "..result);
+            --    local resultObject = json.decode(result);
+            --    if resultObject.status == true then
+            --        return true, true;
+            --    else
+            --        return false, true;
+            --    end
+            --else
+            --    return false, true;
+            --end
             -- return respcode == 200, true;
         end,
     };
